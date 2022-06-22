@@ -1,6 +1,6 @@
 <template>
-    <polygon :points="polygon_points" stroke="black"
-        fill="#00ffff" fill-opacity="0" @mousedown.exact="mouse_down" @mousedown.shift.exact="mouse_down_shift"></polygon>
+    <polygon :points="polygon_points" stroke="black" fill="#00ffff" fill-opacity="0" @mousedown.exact="mouse_down"
+        @mousedown.shift.exact="mouse_down_shift"></polygon>
 </template>
 
 <script>
@@ -21,7 +21,7 @@ export default {
         mouse_down() {
             this.$emit("mouse_down");
         },
-         mouse_down_shift() {
+        mouse_down_shift() {
             this.$emit("mouse_down_shift");
         },
     }

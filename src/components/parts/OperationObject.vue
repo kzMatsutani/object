@@ -1,29 +1,41 @@
 <template>
-    <svg class="svg-g">
-        <svg v-if="is_ellipse">
-            <EllipseObject @mouse_down="flag_up_move(); flag_select();" @mouse_down_shift="shift_select" :center_coordinate="center_coordinate"
-                :width="box_width_top" :height="box_height_left" :angle="angle"></EllipseObject>
+    <svg class="svg-g" @click="test">
+        <svg v-if="this.object_type === 'ellipse'">
+            <EllipseObject @mouse_down="flag_up_move(); flag_select();" @mouse_down_shift="shift_select"
+                :center_coordinate="center_coordinate" :width="box_width_top" :height="box_height_left" :angle="angle">
+            </EllipseObject>
         </svg>
-        <svg v-if="is_rectangle">
-            <RectangleObject :object="circle_point" @mouse_down="flag_up_move(); flag_select();" @mouse_down_shift="shift_select"></RectangleObject>
+        <svg v-if="this.object_type === 'rectangle'">
+            <RectangleObject :object="circle_point" @mouse_down="flag_up_move(); flag_select();"
+                @mouse_down_shift="shift_select"></RectangleObject>
         </svg>
-        <svg v-if="is_triangle">
-            <TriangleObject :object="circle_point" @mouse_down="flag_up_move(); flag_select();" @mouse_down_shift="shift_select"></TriangleObject>
+        <svg v-if="this.object_type === 'triangle'">
+            <TriangleObject :object="circle_point" @mouse_down="flag_up_move(); flag_select();"
+                @mouse_down_shift="shift_select"></TriangleObject>
         </svg>
-        <svg v-if="is_text">
+        <svg v-if="this.object_type === 'image'">
+            <ImageObject :object="circle_point" @mouse_down="flag_up_move(); flag_select();" @text_click="flag_text"
+                @mouse_down_shift="shift_select" :center_coordinate="center_coordinate" :width="box_width_top"
+                :height="box_height_left" :angle="angle" :zoom_ratio="zoom_ratio" :image_path="image_path">
+            </ImageObject>
         </svg>
-        <svg v-if="is_image">
-        </svg>
+
 
 
         <svg v-if="flag_is_select">
-            <PolygonBox :object="circle_point" @mouse_down="flag_up_move(); flag_select();" @mouse_down_shift="shift_select"></PolygonBox>
+            <PolygonBox :object="circle_point" @mouse_down="flag_up_move(); flag_select();"
+                @mouse_down_shift="shift_select"></PolygonBox>
             <CirclePoint v-for="(item, idx) in circle_point" v-model="circle_point[idx]" :idx="idx" v-bind:key="item.id"
                 @mouse_down="flag_up_resize(idx); flag_select();" @mouse_down_shift="shift_select">
             </CirclePoint>
             <RotateObject :center_x="center_coordinate.x" :center_y="center_coordinate.y" :angle="angle"
                 :tl_cx="box_top_left_coordinate.x" :tl_cy="box_top_left_coordinate.y" :top_circle="circle_point[4]"
                 @mouse_down="flag_up_rotate(); flag_select();" @mouse_down_shift="shift_select"></RotateObject>
+        </svg>
+        <svg v-if="this.object_type === 'text'">
+            <TextObject :object="circle_point" @mouse_down="flag_up_move(); flag_select();" @text_click="flag_text"
+                @mouse_down_shift="shift_select" :center_coordinate="center_coordinate" :width="box_width_top"
+                :height="box_height_left" :angle="angle" :zoom_ratio="zoom_ratio"></TextObject>
         </svg>
     </svg>
 </template>
@@ -35,9 +47,14 @@ import PolygonBox from './PolygonBox.vue';
 import EllipseObject from './EllipseObject.vue';
 import TriangleObject from './TriangleObject';
 import RectangleObject from './RectangleObject.vue';
+import TextObject from './TextObject.vue';
+import ImageObject from './ImageObject.vue';
+import AppCore from '../../settings/AppCore';
+
+const app_core = new AppCore.getInstance();
 export default {
     props: [
-        'coordinate', 'idx'
+        'coordinate', 'object_id', 'ratio'
     ],
     data() {
         return {
@@ -48,13 +65,12 @@ export default {
             before_mouseY: 0, //過去ポインタ座標
             target_circle: null, //選択しているサークルポイント
             flag_is_select: false,
-            is_ellipse: false,
-            is_triangle: false,
-            is_image: false,
-            is_text: false,
+            flag_is_text: false,
             is_rectangle: false,
+            object_type: null,
+            image_path: null,
             angle: 0,
-            ratio: { x: 1, y: 1 },
+            zoom_ratio: null,
             center_coordinate: { x: 0, y: 0 },
             box_top_left_coordinate: { x: 0, y: 0 },
             alignment_target_coordinate: null,
@@ -76,15 +92,31 @@ export default {
         PolygonBox,
         EllipseObject,
         TriangleObject,
-        RectangleObject
+        RectangleObject,
+        TextObject,
+        ImageObject
     },
     beforeMount: function () {
+        //オブジェクトタイプをセット
+        this.object_type = this.coordinate.object_type;
+        this.image_path = this.coordinate.image_path
         //座標の初期値をセット
-        if (this.coordinate.object == "ellipse") this.is_ellipse = true;
-        if (this.coordinate.object == "rectangle") this.is_rectangle = true;
-        if (this.coordinate.object == "triangle") this.is_triangle = true;
         this.set_initial_coordinate();
         this.calculate_coordinate_array();
+        app_core.addEvent("flag_reset", this.flag_reset);
+        app_core.addEvent("delete_self", this.delete_self);
+    },
+    beforeUpdate: function () {
+        app_core.removeEvent("flag_reset", this.flag_reset);
+        app_core.removeEvent("delete_self", this.delete_self);
+    },
+    updated: function () {
+        app_core.addEvent("flag_reset", this.flag_reset);
+        app_core.addEvent("delete_self", this.delete_self);
+    },
+    beforeDestroy: function () {
+        app_core.removeEvent("flag_reset", this.flag_reset);
+        app_core.removeEvent("delete_self", this.delete_self);
     },
     computed: {
         box_width_top: function () {
@@ -127,6 +159,15 @@ export default {
         },
     },
     methods: {
+        test() {
+            console.log(this.object_type, "id", this.object_id);
+        },
+        delete_self() {
+            if (this.flag_is_select == false) return;
+            console.log("削除します");
+            this.$destroy();
+            this.$el.parentNode.removeChild(this.$el);
+        },
         //オブジェクト作成時の初期値セット
         set_initial_coordinate() {
             var temp_tl_x = this.coordinate.tl.x;
@@ -159,8 +200,7 @@ export default {
                 this.$set(this.circle_point[idx], 'cx', temp_x);
                 this.$set(this.circle_point[idx], 'cy', temp_y);
             });
-
-
+            this.zoom_ratio = this.ratio;
         },
         //box座標の基準位置セット
         calculate_box_top_left_coordinate() {
@@ -183,8 +223,9 @@ export default {
             this.$set(this.center_coordinate, 'y', center_cy);
         },
         //オブジェクトの回転、拡縮、移動
-        calculate_coordinate_array(dx = 0, dy = 0, angle = this.angle, ratio_x = this.ratio.x, ratio_y = this.ratio.y) {
+        calculate_coordinate_array(dx = 0, dy = 0, angle = this.angle) {
             this.circle_point.forEach((value, idx) => {
+
                 //中心座標を一度0基準にする。
                 var temp_x = value.cx - this.center_coordinate.x;
                 var temp_y = value.cy - this.center_coordinate.y;
@@ -194,9 +235,11 @@ export default {
                 var x1 = Math.cos(a) * temp_x - Math.sin(a) * temp_y;
                 var y1 = Math.sin(a) * temp_x + Math.cos(a) * temp_y;
 
-                //拡縮の計算
-                temp_x = x1 * ratio_x;
-                temp_y = y1 * ratio_y;
+                // //拡縮の計算
+                // temp_x = x1 * ratio_x;
+                // temp_y = y1 * ratio_y;
+                temp_x = x1;
+                temp_y = y1;
 
                 //回転の計算
                 var a2 = angle * Math.PI / 180;
@@ -212,13 +255,13 @@ export default {
                 this.$set(this.circle_point[idx], 'cy', y2);
             })
             this.angle = angle;
-            this.ratio_x = ratio_x;
-            this.ratio_y = ratio_y;
+            // this.ratio_x = ratio_x;
+            // this.ratio_y = ratio_y;
             this.calculate_box_center_coordinate();
             this.calculate_box_top_left_coordinate();
         },
         //オブジェクトの回転、拡縮、移動
-        calculate_coordinate(object, idx, dx = 0, dy = 0, angle = this.angle, ratio_x = this.ratio.x, ratio_y = this.ratio.y) {
+        calculate_coordinate(object, idx, dx = 0, dy = 0, angle = this.angle) {
 
             //中心座標を一度0基準にする。
             var temp_x = object.cx - this.center_coordinate.x;
@@ -229,9 +272,11 @@ export default {
             var x1 = Math.cos(a) * temp_x - Math.sin(a) * temp_y;
             var y1 = Math.sin(a) * temp_x + Math.cos(a) * temp_y;
 
-            //拡縮の計算
-            temp_x = x1 * ratio_x;
-            temp_y = y1 * ratio_y;
+            // //拡縮の計算
+            // temp_x = x1 * ratio_x;
+            // temp_y = y1 * ratio_y;
+            temp_x = x1;
+            temp_y = y1;
 
             //回転の計算
             var a2 = angle * Math.PI / 180;
@@ -247,14 +292,17 @@ export default {
             this.$set(this.circle_point[idx], 'cy', y2);
         },
         //サイズ変更
-        calculate_resize(object, idx, dx = 0, dy = 0, ratio_x = this.ratio.x, ratio_y = this.ratio.y) {
+        calculate_resize(object, idx, dx = 0, dy = 0) {
             //中心座標を一度0基準にする。
             var temp_x = object.cx - this.center_coordinate.x;
             var temp_y = object.cy - this.center_coordinate.y;
 
             //拡縮の計算
-            temp_x = temp_x * ratio_x;
-            temp_y = temp_y * ratio_y;
+            // temp_x = temp_x * ratio_x;
+            // temp_y = temp_y * ratio_y;
+            //拡縮の計算
+            // temp_x = temp_x;
+            // temp_y = temp_y;
 
             //一度回転を0°にする
             var a = (-this.angle) * Math.PI / 180;
@@ -280,35 +328,40 @@ export default {
         },
         //オブジェクト移動フラグオン
         flag_up_move() {
-            this.flag_is_move = true;
-            this.$emit("select_target", this.idx);
+            if (this.flag_is_text == false) this.flag_is_move = true;
+            this.$emit("select_target", this.object_id);
         },
         flag_select() {
             this.flag_is_select = true;
-            this.$emit("select_target", this.idx);
+            this.$emit("select_target", this.object_id);
+        },
+        flag_text() {
+            this.flag_is_text = true;
         },
         //オブジェクト回転フラグオン
         flag_up_rotate() {
             this.flag_is_rotate = true;
-            this.$emit("select_target", this.idx);
+            this.$emit("select_target", this.object_id);
         },
         //オブジェクト拡縮フラグオン
         flag_up_resize(idx) {
             this.flag_is_resize = true;
             this.target_circle = idx;
-            this.$emit("select_target", this.idx);
+            this.$emit("select_target", this.object_id);
         },
         //フラグや過去座標のリセット
         flag_reset() {
             this.flag_is_move = false;
             this.flag_is_rotate = false;
             this.flag_is_resize = false;
+            this.flag_is_text = false;
             this.target_circle = null;
             //過去座標の初期化
             this.before_mouseX = 0;
             this.before_mouseY = 0;
         },
         flag_reset_select() {
+            //過去座標の初期化
             this.flag_is_select = false;
         },
         shift_select() {
@@ -317,7 +370,7 @@ export default {
             } else {
                 this.flag_is_select = true;
             }
-            this.$emit("shift_select_target", this.idx);
+            this.$emit("shift_select_target", this.object_id);
         },
         //オブジェクト移動
         move_box(e) {
@@ -346,7 +399,7 @@ export default {
             this.calculate_coordinate_array(dx, dy);
 
             //他オブジェクトも選択されているときは他オブジェクトも移動
-            this.$emit("move_objects", dx, dy, this.idx);
+            this.$emit("move_objects", dx, dy, this.object_id);
         },
         //オブジェクト回転
         rotate_box(e) {
@@ -681,7 +734,7 @@ export default {
                 value = this.center_coordinate.x;
             }
             this.alignment_target_coordinate = value;
-            this.$emit("alignment", temp, this.idx);
+            this.$emit("alignment", temp, this.object_id);
 
         },
         //座標整頓
@@ -710,6 +763,23 @@ export default {
             }
 
             this.calculate_coordinate_array(dx, dy);
+        },
+        zoom_ratio_apply(ratio, field, before_field) {
+            var temp_center_x = field.width / 2;
+            var temp_center_y = field.height / 2;
+            var before_center_x = before_field.width / 2;
+            var before_center_y = before_field.height / 2;
+            this.circle_point.forEach((value, idx) => {
+                var temp_cx = (((value.cx - before_center_x) / this.zoom_ratio) * ratio) + temp_center_x;
+                var temp_cy = (((value.cy - before_center_y) / this.zoom_ratio) * ratio) + temp_center_y;
+                // console.log(idx, temp_cy)
+                this.$set(this.circle_point[idx], "cx", temp_cx);
+                this.$set(this.circle_point[idx], "cy", temp_cy);
+            });
+            this.zoom_ratio = ratio;
+            //中心座標の再計算
+            this.calculate_box_center_coordinate();
+            this.calculate_box_top_left_coordinate();
         }
     },
 

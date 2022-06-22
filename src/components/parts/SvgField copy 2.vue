@@ -6,9 +6,8 @@
             <rect :x="canvas_coordinate_x" :y="canvas_coordinate_y" :width="canvas_width" :height="canvas_height"
                 fill="#ffffff"></rect>
             <OperationObject v-for="object in objects" ref="svg_object" :coordinate="object" :object_id="object.id"
-                :key="object.id" :ratio="zoom_ratio" @select_target="select_target"
-                @shift_select_target="shift_select_target" @alignment="alignment_object_push"
-                @move_objects="move_objects"></OperationObject>
+                :key="object.id" :ratio="zoom_ratio" @select_target="select_target" @shift_select_target="shift_select_target"
+                @alignment="alignment_object_push" @move_objects="move_objects"></OperationObject>
         </svg>
     </div>
 
@@ -28,7 +27,6 @@ export default {
             flag_is_select: false,
             select_targets: [],
             objects: [],
-            objects2: {},
             count_object: 0,
             alignment_object_target: [],
             select_canvas_type: "a4_horizontal",
@@ -48,13 +46,16 @@ export default {
     mounted: function () {
         window.addEventListener('resize', this.resize_window);
         window.addEventListener('keydown', (e) => {
+            console.log(e.code);
             if (e.code == 'Delete') {
                 this.delete_object();
             }
             if (e.code == 'KeyA') {
+                // console.log(this.select_targets);
                 console.log(this.objects);
             }
             if (e.code == 'KeyS') {
+                // console.log(this.select_targets);
                 console.log(this.select_targets);
             }
         })
@@ -121,7 +122,7 @@ export default {
         event_test() {
         },
         flag_reset() {
-            // if (this.objects.length == 0) return;
+            if (this.objects.length == 0) return;
             // for (var i = 0; i < this.$refs.svg_object.length; i++) {
             //     this.$refs.svg_object[i].flag_reset();
             // }
@@ -132,58 +133,34 @@ export default {
         flag_reset_select() {
             if (this.objects.length == 0) return;
             if (this.flag_is_select) {
-                this.objects.forEach((value, idx) => {
-                    if (value.id == this.target) return;
-                    if (this.select_targets.some((val) => val.id == value.id)) return;
+                this.$refs.svg_object.forEach((value, idx) => {
+                    if (idx == this.target) return;
+                    if (this.select_targets.some((value) => value.id == idx)) return;
                     this.$refs.svg_object[idx].flag_reset_select();
                 });
                 this.flag_is_select = false;
             } else {
-                this.objects.forEach((value, idx) => {
+                this.$refs.svg_object.forEach((value, idx) => {
                     this.$refs.svg_object[idx].flag_reset_select();
                 });
                 this.target = null;
                 this.select_targets = [];
             }
         },
-        // flag_reset_select() {
-        //     if (this.objects.length == 0) return;
-        //     if (this.flag_is_select) {
-        //         this.$refs.svg_object.forEach((value, idx) => {
-        //             if (idx == this.target) return;
-        //             if (this.select_targets.some((value) => value.id == idx)) return;
-        //             this.$refs.svg_object[idx].flag_reset_select();
-        //         });
-        //         this.flag_is_select = false;
-        //     } else {
-        //         this.$refs.svg_object.forEach((value, idx) => {
-        //             this.$refs.svg_object[idx].flag_reset_select();
-        //         });
-        //         this.target = null;
-        //         this.select_targets = [];
-        //     }
-        // },
         move_box(e) {
             if (this.target == null) return;
             if (this.objects.length == 0) return;
-            this.objects.forEach((val, idx) => {
-                if (val.id == this.target) this.$refs.svg_object[idx].move_box(e);
-            });
-
+            this.$refs.svg_object[this.target].move_box(e);
         },
         rotate_box(e) {
             if (this.target == null) return;
             if (this.objects.length == 0) return;
-            this.objects.forEach((val, idx) => {
-                if (val.id == this.target) this.$refs.svg_object[idx].rotate_box(e);
-            });
+            this.$refs.svg_object[this.target].rotate_box(e);
         },
         resize_box(e) {
             if (this.target == null) return;
             if (this.objects.length == 0) return;
-            this.objects.forEach((val, idx) => {
-                if (val.id == this.target) this.$refs.svg_object[idx].resize_box(e);
-            });
+            this.$refs.svg_object[this.target].resize_box(e);
         },
         create_object(object_type, image_path) {
             this.objects.push({
@@ -195,27 +172,31 @@ export default {
             // 現在選択中のオブジェクトのidと作成したオブジェクトのidが同一のものを削除する
             var delete_idx = [];
             this.select_targets.forEach((value) => {
-                // console.log(this.objects[value.id].object_type);
+                console.log(this.objects[value.id].object_type);
                 this.objects.forEach((val, idx) => {
-                    if (val.id === value.id) delete_idx.push(idx);
+                    if (val.id === value.id) delete_idx.push(idx);    
                 })
+                // this.$delete(this.objects, value.id);
+                // this.objects.splice(value.id, 0);
             });
+            console.log(delete_idx);
             delete_idx.forEach((value) => {
+                console.log(value);
                 this.objects.splice(value, 1);
             })
             app_core.executeEvent("delete_self");
             this.flag_reset();
             this.flag_reset_select();
             this.select_targets = [];
+
+
         },
         //オブジェクトの移動が行われるとき、他オブジェクトも対象だった場合
-        move_objects(dx, dy, object_id) {
+        move_objects(dx, dy, idx) {
             if (this.select_targets.length == 1) return;
             this.select_targets.forEach((value) => {
-                if (value.id == object_id) return;
-                this.objects.forEach((val, idx) => {
-                    if (val.id == value.id) this.$refs.svg_object[idx].calculate_coordinate_array(dx, dy);
-                });
+                if (value.id == idx) return;
+                this.$refs.svg_object[value.id].calculate_coordinate_array(dx, dy);
             });
         },
         //選択オブジェクトの整列実行
@@ -225,9 +206,7 @@ export default {
 
             //選択しているオブジェクトからモードに応じた座標を取得
             this.select_targets.forEach((value) => {
-                this.objects.forEach((val, idx) => {
-                    if (val.id == value.id) this.$refs.svg_object[idx].get_circle_point_coordinate(mode);
-                });
+                this.$refs.svg_object[value.id].get_circle_point_coordinate(mode);
             });
 
             var int_coordinate = null;
@@ -277,7 +256,6 @@ export default {
             this.alignment_object_target.forEach((value) => {
                 this.$refs.svg_object[value.id].alignment_coordinate(int_coordinate, mode);
             });
-            
 
             //取得した座標を空にする
             this.alignment_object_target = [];
@@ -288,26 +266,23 @@ export default {
             this.alignment_object_target.push({ id: idx, x: coordinate.cx, y: coordinate.cy });
         },
         //キーを何も押下しないで、オブジェクトをクリック選択された時
-        select_target(object_id) {
-            if (!this.select_targets.some((value) => value.id === object_id)) {
+        select_target(idx) {
+            if (!this.select_targets.some((value) => value.id === idx)) {
                 this.select_targets = [];
-                this.select_targets.push({ id: object_id });
+                this.select_targets.push({ id: idx });
             }
 
-            this.target = object_id;
+            this.target = idx;
             this.flag_is_select = true;
         },
         //シフトキーを押下したまま、オブジェクトをクリック選択した時
-        shift_select_target(object_id) {
+        shift_select_target(idx) {
             //既に選択配列に入っている場合は除外
-            if (this.select_targets.some((value) => value.id === object_id)) {
-                this.select_targets.forEach((value, idx) => {
-                    if (value.id === object_id) this.select_targets.splice(idx, 1);
-                })
-
+            if (this.select_targets.some((value) => value.id === idx)) {
+                this.select_targets.splice(idx, 1);
             } else {
                 //新たに選択された場合は選択配列に入れる
-                this.select_targets.push({ id: object_id });
+                this.select_targets.push({ id: idx });
             }
             this.flag_is_select = true;
         },
